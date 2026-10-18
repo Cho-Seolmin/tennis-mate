@@ -1,0 +1,13 @@
+project_id = "tennismate"
+
+[functions.create-wallet]
+verify_jwt = true
+
+[functions.claim-attendance]
+verify_jwt = true
+
+[functions.settle-match]
+verify_jwt = true
+
+[functions.refresh-ranking]
+verify_jwt = true

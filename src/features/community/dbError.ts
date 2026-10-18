@@ -7,13 +7,16 @@ const messages: Record<string, string> = {
   invalid_title: '제목은 1자 이상 100자 이하여야 합니다.',
   invalid_location: '장소는 1자 이상 200자 이하여야 합니다.',
   invalid_schedule: '올바른 날짜와 시간을 입력해 주세요.',
-  invalid_capacity: '정원은 2명 이상 30명 이하여야 합니다.',
+  invalid_capacity: '정원은 2명 이상 10명 이하여야 합니다.',
   invalid_cursor: '이전 메시지를 불러오지 못했습니다.',
   invalid_page_size: '메시지는 20개씩만 불러옵니다.',
   chat_messages_content_length: '메시지는 1자 이상 500자 이하여야 합니다.',
   rooms_title_length: '제목은 1자 이상 100자 이하여야 합니다.',
   rooms_location_length: '장소는 1자 이상 200자 이하여야 합니다.',
-  rooms_capacity: '정원은 2명 이상 30명 이하여야 합니다.',
+  rooms_capacity: '정원은 2명 이상 10명 이하여야 합니다.',
+  not_host: '방장만 할 수 있습니다.',
+  host_must_delete: '방장은 나가기 대신 채팅방을 삭제할 수 있습니다.',
+  cannot_kick_host: '방장은 내보낼 수 없습니다.',
 }
 
 type CommunityDbError = {

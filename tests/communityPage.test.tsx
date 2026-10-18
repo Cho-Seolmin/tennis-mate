@@ -25,10 +25,15 @@ vi.mock('../src/lib/supabase.ts', () => ({
 
 vi.mock('../src/features/community/roomApi.ts', () => ({
   roomsQueryKey: ['rooms'],
+  roomMembersQueryKey: (roomId: string) => ['room-members', roomId],
   fetchRoomSummaries: vi.fn(),
+  fetchRoomMembers: vi.fn(async () => []),
   createRoom: vi.fn(),
   joinRoom: vi.fn(),
   leaveRoom: vi.fn(),
+  deleteRoom: vi.fn(),
+  kickRoomMember: vi.fn(),
+  subscribeToRoomMembers: vi.fn(() => () => {}),
 }))
 
 vi.mock('../src/features/community/messageApi.ts', () => ({
@@ -51,8 +56,8 @@ vi.mock('../src/features/community/messageApi.ts', () => ({
   subscribeToRoomMessages: vi.fn(() => () => {}),
 }))
 
-import { fetchChatPage, sendChatMessage } from '../src/features/community/messageApi.ts'
-import { fetchRoomSummaries, joinRoom } from '../src/features/community/roomApi.ts'
+import { fetchChatPage, fetchNicknames, sendChatMessage } from '../src/features/community/messageApi.ts'
+import { deleteRoom, fetchRoomMembers, fetchRoomSummaries, joinRoom, kickRoomMember } from '../src/features/community/roomApi.ts'
 
 const openRoom: RoomSummary = {
   id: 'room-open',
@@ -174,6 +179,47 @@ describe('community page', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('메시지를 보내지 못했습니다.')
     expect(screen.getByLabelText('메시지')).toHaveValue('<script>alert(1)</script>')
+  })
+
+  it('shows a create button when the room list is empty', async () => {
+    vi.mocked(fetchRoomSummaries).mockResolvedValue([])
+
+    renderPage(<CommunityPage />)
+
+    expect(await screen.findByText('모임이 없습니다')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '모임 만들기' })).toHaveLength(2)
+  })
+
+  it('lets the host delete a room and kick a member, and keeps those actions away from other members', async () => {
+    const user = userEvent.setup()
+    const guestRoom: RoomSummary = { ...openRoom, memberCount: 2, joined: true }
+    vi.mocked(fetchRoomSummaries).mockResolvedValue([joinedRoom, guestRoom])
+    vi.mocked(fetchRoomMembers).mockResolvedValue([
+      { user_id: 'user-1', joined_at: '2026-10-18T00:00:00.000Z' },
+      { user_id: 'user-2', joined_at: '2026-10-18T00:01:00.000Z' },
+    ])
+    vi.mocked(fetchChatPage).mockResolvedValue({ messages: [], nextCursor: null })
+    vi.mocked(fetchNicknames).mockResolvedValue({ 'user-2': '민수' })
+    vi.mocked(deleteRoom).mockResolvedValue(undefined)
+    vi.mocked(kickRoomMember).mockResolvedValue(undefined)
+
+    renderPage(<CommunityPage />)
+
+    expect(await screen.findByRole('button', { name: '저녁 단식 채팅방 삭제' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '저녁 단식 나가기' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '토요일 복식 나가기' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '토요일 복식 채팅방 삭제' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: '저녁 단식 채팅방 삭제' }))
+    await user.click(await screen.findByRole('button', { name: '삭제' }))
+    expect(deleteRoom).toHaveBeenCalledWith('room-joined')
+
+    await user.click(screen.getByRole('button', { name: /잠실 코트/ }))
+    await user.click(await screen.findByRole('button', { name: '민수 강퇴' }))
+    expect(kickRoomMember).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: '민수 강퇴' }))
+    expect(kickRoomMember).toHaveBeenCalledWith('room-joined', 'user-2')
+    expect(screen.queryByRole('button', { name: '나 강퇴' })).not.toBeInTheDocument()
   })
 
   it('shows an empty chat state', async () => {

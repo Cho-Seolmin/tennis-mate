@@ -9,8 +9,10 @@ type RoomListProps = {
   userId: string
   pendingRoomId: string | null
   onSelect: (roomId: string) => void
+  onCreate: () => void
   onJoin: (roomId: string) => void
   onLeave: (roomId: string) => void
+  onDelete: (roomId: string) => void
 }
 
 export function RoomList({
@@ -19,15 +21,22 @@ export function RoomList({
   userId,
   pendingRoomId,
   onSelect,
+  onCreate,
   onJoin,
   onLeave,
+  onDelete,
 }: RoomListProps) {
   if (rooms.length === 0) {
     return (
-      <EmptyState
-        title="모임이 없습니다"
-        description="모임을 만들면 다른 사람이 참여할 수 있습니다."
-      />
+      <div className="space-y-4">
+        <EmptyState
+          title="모임이 없습니다"
+          description="로그인한 사용자는 누구나 채팅방을 만들고 참여할 수 있습니다."
+        />
+        <Button className="w-full" onClick={onCreate}>
+          모임 만들기
+        </Button>
+      </div>
     )
   }
 
@@ -57,11 +66,21 @@ export function RoomList({
               </span>
               <span className="mt-2 block text-sm font-medium text-court-800">
                 {room.memberCount} / {room.max_participants}명
-                {room.host_id === userId ? ' · 주최' : ''}
+                {room.host_id === userId ? ' · 방장' : ''}
               </span>
             </button>
             <div className="mt-3">
-              {room.joined ? (
+              {room.host_id === userId ? (
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  disabled={pending}
+                  aria-label={`${room.title} 채팅방 삭제`}
+                  onClick={() => onDelete(room.id)}
+                >
+                  {pending ? '삭제하는 중' : '채팅방 삭제'}
+                </Button>
+              ) : room.joined ? (
                 <Button
                   variant="secondary"
                   className="w-full"

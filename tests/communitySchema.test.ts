@@ -4,6 +4,7 @@ import { defaultRoomValues, roomFormSchema } from '../src/features/community/roo
 import { isRoomFull, summarizeRooms } from '../src/features/community/roomSummary.ts'
 import { communityError } from '../src/features/community/dbError.ts'
 import migrationSql from '../supabase/migrations/20261018022000_rooms_and_chat.sql?raw'
+import hostControlsSql from '../supabase/migrations/20261018120000_room_host_controls.sql?raw'
 import type { Room } from '../src/types/database.ts'
 
 const room: Room = {
@@ -48,6 +49,14 @@ describe('room form', () => {
         location: '잠실',
         scheduled_at: '2026-10-18T19:00',
         max_participants: 1,
+      }).success,
+    ).toBe(false)
+    expect(
+      roomFormSchema.safeParse({
+        title: '저녁 단식',
+        location: '잠실',
+        scheduled_at: '2026-10-18T19:00',
+        max_participants: 11,
       }).success,
     ).toBe(false)
   })
@@ -107,5 +116,10 @@ describe('rooms and chat migration', () => {
     expect(migrationSql).toContain('limit page_limit + 1')
     expect(migrationSql).toContain('supabase_realtime')
     expect(migrationSql).not.toContain('wallet_address')
+    expect(hostControlsSql).toContain('max_participants between 2 and 10')
+    expect(hostControlsSql).toContain("raise exception 'not_host'")
+    expect(hostControlsSql).toContain("raise exception 'cannot_kick_host'")
+    expect(hostControlsSql).toContain("raise exception 'host_must_delete'")
+    expect(hostControlsSql).toContain('host_id = auth.uid()')
   })
 })

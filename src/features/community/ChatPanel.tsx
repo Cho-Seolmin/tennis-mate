@@ -17,6 +17,7 @@ import {
 } from './chatPages.ts'
 import { formatMessageTime } from './format.ts'
 import { isRoomFull, type RoomSummary } from './roomSummary.ts'
+import { fetchRoomMembers, roomMembersQueryKey, roomsQueryKey, subscribeToRoomMembers } from './roomApi.ts'
 import {
   chatMessagesQueryKey,
   fetchChatPage,
@@ -31,7 +32,9 @@ type ChatPanelProps = {
   room: RoomSummary | null
   userId: string
   joining: boolean
+  kickingUserId: string | null
   onJoin: (roomId: string) => void
+  onKick: (userId: string) => void
 }
 
 type ScrollAnchor = {
@@ -40,7 +43,7 @@ type ScrollAnchor = {
   top: number
 }
 
-export function ChatPanel({ room, userId, joining, onJoin }: ChatPanelProps) {
+export function ChatPanel({ room, userId, joining, kickingUserId, onJoin, onKick }: ChatPanelProps) {
   if (!room) {
     return (
       <EmptyState
@@ -70,10 +73,20 @@ export function ChatPanel({ room, userId, joining, onJoin }: ChatPanelProps) {
     )
   }
 
-  return <MemberChat key={room.id} room={room} userId={userId} />
+  return <MemberChat key={room.id} room={room} userId={userId} kickingUserId={kickingUserId} onKick={onKick} />
 }
 
-function MemberChat({ room, userId }: { room: RoomSummary; userId: string }) {
+function MemberChat({
+  room,
+  userId,
+  kickingUserId,
+  onKick,
+}: {
+  room: RoomSummary
+  userId: string
+  kickingUserId: string | null
+  onKick: (userId: string) => void
+}) {
   const queryClient = useQueryClient()
   const scrollerRef = useRef<HTMLDivElement>(null)
   const stickToBottomRef = useRef(true)
@@ -104,6 +117,27 @@ function MemberChat({ room, userId }: { room: RoomSummary; userId: string }) {
     enabled: senderIds.length > 0,
     retry: false,
   })
+  const membersQuery = useQuery({
+    queryKey: roomMembersQueryKey(room.id),
+    queryFn: () => fetchRoomMembers(room.id),
+    retry: false,
+  })
+  const memberIds = (membersQuery.data ?? []).map((member) => member.user_id)
+  const memberNamesQuery = useQuery({
+    queryKey: nicknameQueryKey(memberIds),
+    queryFn: () => fetchNicknames(memberIds),
+    enabled: memberIds.length > 0,
+    retry: false,
+  })
+  const isHost = room.host_id === userId
+  const [kickTarget, setKickTarget] = useState<string | null>(null)
+
+  useEffect(() => {
+    return subscribeToRoomMembers(room.id, () => {
+      void queryClient.invalidateQueries({ queryKey: roomsQueryKey })
+      void queryClient.invalidateQueries({ queryKey: roomMembersQueryKey(room.id) })
+    })
+  }, [queryClient, room.id])
 
   useEffect(() => {
     bufferedRef.current = []
@@ -253,6 +287,51 @@ function MemberChat({ room, userId }: { room: RoomSummary; userId: string }) {
   return (
     <div className="flex h-[min(36rem,70dvh)] min-h-80 flex-col">
       <p className="text-sm text-ink/70">{room.title}</p>
+      <div className="mt-3 max-h-40 space-y-2 overflow-y-auto" aria-label="참여자">
+        {membersQuery.isPending ? <p className="text-sm text-ink/65">참여자를 불러오는 중</p> : null}
+        {membersQuery.isError ? (
+          <p className="text-sm text-danger" role="alert">
+            참여자를 불러오지 못했습니다.
+          </p>
+        ) : null}
+        <ul className="space-y-2">
+          {(membersQuery.data ?? []).map((member) => {
+            const host = member.user_id === room.host_id
+            const name = member.user_id === userId ? '나' : (memberNamesQuery.data?.[member.user_id] ?? '참여자')
+
+            return (
+              <li key={member.user_id} className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-sm text-ink">
+                  {name}
+                  {host ? ' · 방장' : ''}
+                </span>
+                {isHost && !host ? (
+                  <Button
+                    variant="secondary"
+                    aria-label={`${name} 강퇴`}
+                    disabled={kickingUserId === member.user_id}
+                    onClick={() => {
+                      if (kickTarget === member.user_id) {
+                        onKick(member.user_id)
+                        setKickTarget(null)
+                        return
+                      }
+
+                      setKickTarget(member.user_id)
+                    }}
+                  >
+                    {kickingUserId === member.user_id
+                      ? '내보내는 중'
+                      : kickTarget === member.user_id
+                        ? '내보내기 확인'
+                        : '강퇴'}
+                  </Button>
+                ) : null}
+              </li>
+            )
+          })}
+        </ul>
+      </div>
       <div
         ref={scrollerRef}
         className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"

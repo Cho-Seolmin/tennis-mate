@@ -18,7 +18,7 @@ React와 TypeScript로 인증, 폼 검증, 서버 상태, 실시간 채팅, 지�
 | --- | --- |
 | `/login` | 이메일 8자리 OTP 로그인 |
 | `/dashboard` | 프로필, 월간 달력, 일정, 장비, Sepolia 지갑과 ETH/TNS 잔액 |
-| `/community` | 모임 생성·참여·나가기, 참여자 채팅 |
+| `/community` | 누구나 만드는 채팅방, 2~10명, 방장만 삭제·강퇴 |
 | `/rewards` | 서울 날짜 기준 하루 한 번 10 TNS 출석 보상 |
 | `/matches` | 패자 지갑에서 승자 지갑으로 TNS 전송 |
 | `/ranking` | 등록 사용자의 TNS 잔액 순위 |

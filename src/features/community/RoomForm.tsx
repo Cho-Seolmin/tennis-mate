@@ -60,9 +60,10 @@ export function RoomForm({ defaultValues, submitting, onSubmit }: RoomFormProps)
         label="최대 인원"
         type="number"
         min={2}
-        max={30}
+        max={10}
         step={1}
         inputMode="numeric"
+        hint="2명에서 10명까지"
         error={form.formState.errors.max_participants?.message}
         {...form.register('max_participants', { valueAsNumber: true })}
       />

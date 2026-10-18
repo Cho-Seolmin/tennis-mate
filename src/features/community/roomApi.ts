@@ -80,6 +80,72 @@ export async function leaveRoom(roomId: string) {
   }
 }
 
+export async function deleteRoom(roomId: string) {
+  const client = requireClient()
+  const { error } = await client.rpc('delete_room', { p_room_id: roomId })
+
+  if (error) {
+    throw new Error(communityError(error, '채팅방을 삭제하지 못했습니다.'))
+  }
+}
+
+export async function kickRoomMember(roomId: string, userId: string) {
+  const client = requireClient()
+  const { error } = await client.rpc('kick_room_member', {
+    p_room_id: roomId,
+    p_user_id: userId,
+  })
+
+  if (error) {
+    throw new Error(communityError(error, '참여자를 내보내지 못했습니다.'))
+  }
+}
+
+export function roomMembersQueryKey(roomId: string) {
+  return ['room-members', roomId] as const
+}
+
+export async function fetchRoomMembers(roomId: string) {
+  const client = requireClient()
+  const { data, error } = await client
+    .from('room_members')
+    .select('user_id, joined_at')
+    .eq('room_id', roomId)
+    .order('joined_at', { ascending: true })
+
+  if (error) {
+    throw new Error(communityError(error, '참여자를 불러오지 못했습니다.'))
+  }
+
+  return data ?? []
+}
+
+export function subscribeToRoomMembers(roomId: string, onChange: () => void) {
+  if (!supabase) {
+    return () => {}
+  }
+
+  const channel = supabase
+    .channel(`room-members:${roomId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'room_members',
+        filter: `room_id=eq.${roomId}`,
+      },
+      () => {
+        onChange()
+      },
+    )
+    .subscribe()
+
+  return () => {
+    void supabase?.removeChannel(channel)
+  }
+}
+
 function readRoom(data: Room | null) {
   if (!data || typeof data !== 'object') {
     throw new Error('모임을 만들지 못했습니다.')

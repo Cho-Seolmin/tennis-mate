@@ -23,7 +23,7 @@ export const roomFormSchema = z.object({
     .number({ error: '정원을 입력해 주세요.' })
     .int({ error: '정원은 정수로 입력해 주세요.' })
     .min(2, { error: '정원은 2명 이상이어야 합니다.' })
-    .max(30, { error: '정원은 30명까지 가능합니다.' }),
+    .max(10, { error: '정원은 10명까지 가능합니다.' }),
 })
 
 export const roomWriteSchema = roomFormSchema.transform((value) => ({

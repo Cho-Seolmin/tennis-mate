@@ -14,7 +14,7 @@ import { ChatPanel } from './ChatPanel.tsx'
 import { chatMessagesQueryKey } from './messageApi.ts'
 import { RoomForm } from './RoomForm.tsx'
 import { RoomList } from './RoomList.tsx'
-import { createRoom, fetchRoomSummaries, joinRoom, leaveRoom, roomsQueryKey } from './roomApi.ts'
+import { createRoom, deleteRoom, fetchRoomSummaries, joinRoom, kickRoomMember, leaveRoom, roomsQueryKey } from './roomApi.ts'
 import { defaultRoomValues, type RoomFormValues } from './roomSchema.ts'
 
 export function CommunityPage() {
@@ -23,6 +23,7 @@ export function CommunityPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<RoomFormValues | null>(null)
   const [pendingRoomId, setPendingRoomId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const userQuery = useQuery({
     queryKey: authUserQueryKey,
     queryFn: getCurrentUser,
@@ -75,6 +76,42 @@ export function CommunityPage() {
     },
     onSettled: () => {
       setPendingRoomId(null)
+    },
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (roomId: string) => deleteRoom(roomId),
+    onMutate: (roomId) => {
+      setPendingRoomId(roomId)
+    },
+    onSuccess: async (_result, roomId) => {
+      await queryClient.invalidateQueries({ queryKey: roomsQueryKey })
+      queryClient.removeQueries({ queryKey: chatMessagesQueryKey(roomId) })
+      setSelectedId((current) => (current === roomId ? null : current))
+      setDeleteTarget(null)
+      push({ tone: 'success', message: '채팅방을 삭제했습니다.' })
+    },
+    onError: (error) => {
+      push({
+        tone: 'error',
+        message: error instanceof Error ? error.message : '채팅방을 삭제하지 못했습니다.',
+      })
+    },
+    onSettled: () => {
+      setPendingRoomId(null)
+    },
+  })
+  const kickMutation = useMutation({
+    mutationFn: (member: { roomId: string; userId: string }) => kickRoomMember(member.roomId, member.userId),
+    onSuccess: async (_result, member) => {
+      await queryClient.invalidateQueries({ queryKey: roomsQueryKey })
+      await queryClient.invalidateQueries({ queryKey: ['room-members', member.roomId] })
+      push({ tone: 'success', message: '참여자를 내보냈습니다.' })
+    },
+    onError: (error) => {
+      push({
+        tone: 'error',
+        message: error instanceof Error ? error.message : '참여자를 내보내지 못했습니다.',
+      })
     },
   })
   const leaveMutation = useMutation({
@@ -136,13 +173,14 @@ export function CommunityPage() {
     <section className="space-y-6">
       <PageHeader
         title="모임"
-        description="테니스 모임을 만들고 참여한 뒤, 같은 모임의 채팅으로 대화합니다."
+        description="로그인한 사용자는 누구나 채팅방을 만들고 참여할 수 있습니다. 삭제는 방장만 할 수 있습니다."
       />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card className="lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <h2 className="text-base font-semibold text-ink">모임 목록</h2>
             <Button
+              className="w-full md:w-auto"
               onClick={() => {
                 setDraft(defaultRoomValues())
               }}
@@ -157,12 +195,16 @@ export function CommunityPage() {
               userId={userId}
               pendingRoomId={pendingRoomId}
               onSelect={setSelectedId}
+              onCreate={() => {
+                setDraft(defaultRoomValues())
+              }}
               onJoin={(roomId) => {
                 joinMutation.mutate(roomId)
               }}
               onLeave={(roomId) => {
                 leaveMutation.mutate(roomId)
               }}
+              onDelete={setDeleteTarget}
             />
           </div>
         </Card>
@@ -173,13 +215,53 @@ export function CommunityPage() {
               room={selected}
               userId={userId}
               joining={joinMutation.isPending && pendingRoomId === selected?.id}
+              kickingUserId={kickMutation.isPending ? kickMutation.variables?.userId ?? null : null}
               onJoin={(roomId) => {
                 joinMutation.mutate(roomId)
+              }}
+              onKick={(memberId) => {
+                if (!selected) {
+                  return
+                }
+
+                kickMutation.mutate({ roomId: selected.id, userId: memberId })
               }}
             />
           </div>
         </Card>
       </div>
+      <Modal
+        open={deleteTarget !== null}
+        title="채팅방 삭제"
+        onClose={() => {
+          if (!deleteMutation.isPending) {
+            setDeleteTarget(null)
+          }
+        }}
+      >
+        <p>방장만 자신이 만든 채팅방을 삭제할 수 있습니다. 메시지와 참여 기록도 함께 삭제됩니다.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <Button
+            variant="secondary"
+            disabled={deleteMutation.isPending}
+            onClick={() => {
+              setDeleteTarget(null)
+            }}
+          >
+            취소
+          </Button>
+          <Button
+            disabled={deleteMutation.isPending || !deleteTarget}
+            onClick={() => {
+              if (deleteTarget) {
+                deleteMutation.mutate(deleteTarget)
+              }
+            }}
+          >
+            {deleteMutation.isPending ? '삭제하는 중' : '삭제'}
+          </Button>
+        </div>
+      </Modal>
       <Modal
         open={draft !== null}
         title="모임 만들기"

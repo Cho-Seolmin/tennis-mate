@@ -265,6 +265,14 @@ export type Database = {
         Args: { p_room_id: string }
         Returns: undefined
       }
+      delete_room: {
+        Args: { p_room_id: string }
+        Returns: undefined
+      }
+      kick_room_member: {
+        Args: { p_room_id: string; p_user_id: string }
+        Returns: undefined
+      }
       list_chat_messages: {
         Args: {
           p_room_id: string
